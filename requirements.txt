@@ -1,0 +1,13 @@
+# Phase 2: ingestion
+pypdf>=4.0
+python-dotenv>=1.0
+langchain-text-splitters>=0.3
+langchain-chroma>=0.2
+langchain-huggingface>=0.1
+sentence-transformers>=3.0
+
+# Phase 3: answer generation
+langchain-openai>=0.3
+
+# dev
+pytest>=8.0

@@ -1,0 +1,17 @@
+# secrets
+.env
+
+# vector database (rebuilt with the ingest command)
+chroma_db/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
