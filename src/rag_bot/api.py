@@ -10,15 +10,24 @@ Endpoints:
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from rag_bot import config
 from rag_bot.bot import SupportBot
+
+
+# ── rate limiter ─────────────────────────────────────────────────────
+# 10 requests per minute per IP (demo setting — raise for production)
+limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 
 
 # ── request / response models ────────────────────────────────────────
@@ -45,7 +54,7 @@ async def lifespan(app: FastAPI):
     print("Loading VoltEdge support bot ...")
     app.state.bot = SupportBot.from_disk()
     print("Bot ready.")
-    yield                    # server runs here
+    yield
     print("Shutting down.")
 
 
@@ -57,15 +66,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# attach rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],     # demo only — restrict to your domain in production
+    allow_origins=["*"],   # demo only — restrict to your domain in production
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
-# serve the frontend folder at /ui  (optional, for demo)
-import os
+# serve the frontend folder at /ui
 _frontend = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
 if os.path.isdir(_frontend):
     app.mount("/ui", StaticFiles(directory=_frontend, html=True), name="ui")
@@ -79,7 +91,8 @@ async def health():
 
 
 @app.post("/ask", response_model=AskResponse)
-async def ask(body: AskRequest):
+@limiter.limit("10/minute")
+async def ask(request: Request, body: AskRequest):
     bot: SupportBot = app.state.bot
     try:
         result = bot.ask(body.question)
