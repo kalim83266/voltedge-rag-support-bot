@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoltEdge Support Bot</title>
+<style>
+  /* ── reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:        #0D1117;
+    --surface:   #161B22;
+    --border:    #30363D;
+    --accent:    #238636;
+    --accent-h:  #2EA043;
+    --blue:      #1F6FEB;
+    --text:      #E6EDF3;
+    --muted:     #8B949E;
+    --user-bg:   #1F6FEB;
+    --bot-bg:    #161B22;
+    --source-bg: #0D2040;
+    --error:     #DA3633;
+    --radius:    12px;
+    --shadow:    0 8px 32px rgba(0,0,0,.55);
+  }
+
+  body {
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── demo store page ── */
+  .store {
+    width: 100%;
+    max-width: 900px;
+    padding: 40px 24px 120px;
+  }
+  .store-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+  .store-logo {
+    width: 42px; height: 42px;
+    background: var(--blue);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .store-name { font-size: 22px; font-weight: 700; }
+  .store-tagline { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .products {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .product-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  .product-card:hover { border-color: var(--blue); }
+  .product-emoji { font-size: 36px; margin-bottom: 10px; }
+  .product-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .product-price { font-size: 13px; color: var(--accent); font-weight: 600; }
+
+  /* ── chat widget launcher ── */
+  #launcher {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    width: 58px; height: 58px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+    transition: background .2s, transform .2s;
+    z-index: 1000;
+  }
+  #launcher:hover { background: var(--accent-h); transform: scale(1.08); }
+  #launcher svg { width: 26px; height: 26px; fill: white; }
+  .launcher-badge {
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 14px; height: 14px;
+    background: var(--blue);
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+  }
+
+  /* ── chat window ── */
+  #chat-window {
+    position: fixed;
+    bottom: 100px; right: 28px;
+    width: 380px;
+    max-height: 580px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+    z-index: 1000;
+    overflow: hidden;
+    transform-origin: bottom right;
+    transition: opacity .2s, transform .2s;
+  }
+  #chat-window.hidden {
+    opacity: 0;
+    transform: scale(.92) translateY(12px);
+    pointer-events: none;
+  }
+
+  /* header */
+  .chat-header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chat-avatar {
+    width: 34px; height: 34px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .chat-title { font-size: 14px; font-weight: 600; }
+  .chat-subtitle { font-size: 11px; color: var(--accent); margin-top: 1px; }
+  .online-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  #close-btn {
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 20px; line-height: 1;
+    padding: 0 0 0 8px;
+    transition: color .15s;
+  }
+  #close-btn:hover { color: var(--text); }
+
+  /* messages */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .msg { display: flex; flex-direction: column; max-width: 88%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot  { align-self: flex-start; align-items: flex-start; }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: var(--user-bg);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.bot .bubble {
+    background: var(--bot-bg);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.bot .bubble.error { border-color: var(--error); color: var(--error); }
+
+  .sources {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .source-chip {
+    background: var(--source-bg);
+    border: 1px solid var(--blue);
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    color: #79C0FF;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .source-chip::before { content: "📄"; font-size: 11px; }
+
+  /* typing indicator */
+  .typing { display: flex; gap: 5px; padding: 10px 14px; }
+  .typing span {
+    width: 7px; height: 7px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: bounce .9s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: .15s; }
+  .typing span:nth-child(3) { animation-delay: .30s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%           { transform: translateY(-7px); }
+  }
+
+  /* input area */
+  .chat-footer {
+    border-top: 1px solid var(--border);
+    padding: 12px;
+    display: flex;
+    gap: 8px;
+    background: var(--bg);
+  }
+  #question-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13.5px;
+    padding: 9px 12px;
+    resize: none;
+    outline: none;
+    line-height: 1.4;
+    max-height: 100px;
+    transition: border-color .15s;
+    font-family: inherit;
+  }
+  #question-input:focus { border-color: var(--blue); }
+  #question-input::placeholder { color: var(--muted); }
+
+  #send-btn {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s;
+    align-self: flex-end;
+  }
+  #send-btn:hover:not(:disabled) { background: var(--accent-h); }
+  #send-btn:disabled { opacity: .45; cursor: not-allowed; }
+  #send-btn svg { width: 17px; height: 17px; fill: white; }
+
+  /* suggestion pills */
+  .suggestions {
+    padding: 0 16px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .suggestion {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 11px;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+    font-family: inherit;
+  }
+  .suggestion:hover { border-color: var(--blue); color: var(--text); }
+
+  /* mobile */
+  @media (max-width: 440px) {
+    #chat-window { width: calc(100vw - 20px); right: 10px; }
+    #launcher    { right: 16px; bottom: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── fake store page ─────────────────────────────────── -->
+<div class="store">
+  <div class="store-header">
+    <div class="store-logo">⚡</div>
+    <div>
+      <div class="store-name">VoltEdge Electronics</div>
+      <div class="store-tagline">Premium electronics — free shipping over $75</div>
+    </div>
+  </div>
+
+  <div class="products">
+    <div class="product-card">
+      <div class="product-emoji">💻</div>
+      <div class="product-name">UltraBook Pro 15"</div>
+      <div class="product-price">$1,299</div>
+    </div>
+    <div class="product-card">
+      <div class="product-emoji">📱</div>
+      <div class="product-name">Pixel X5 Smartphone</div>
+      <div class="product-price">$699</div>
+    </div>
+    <div class="product-card">
+      <div class="product-emoji">🎧</div>
+      <div class="product-name">SoundMax Headphones</div>
+      <div class="product-price">$249</div>
+    </div>
+    <div class="product-card">
+      <div class="product-emoji">⌨️</div>
+      <div class="product-name">MechKey Pro Keyboard</div>
+      <div class="product-price">$149</div>
+    </div>
+  </div>
+
+  <p style="color:var(--muted); font-size:13px;">
+    Have a question about returns, shipping or your order?
+    Click the <strong style="color:var(--accent)">chat button</strong> below ↘
+  </p>
+</div>
+
+<!-- ── chat launcher button ───────────────────────────── -->
+<button id="launcher" aria-label="Open support chat">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+  <div class="launcher-badge"></div>
+</button>
+
+<!-- ── chat window ────────────────────────────────────── -->
+<div id="chat-window" class="hidden" role="dialog" aria-label="VoltEdge Support Chat">
+
+  <div class="chat-header">
+    <div class="chat-avatar">⚡</div>
+    <div>
+      <div class="chat-title">VoltEdge Support</div>
+      <div class="chat-subtitle">● Online — answers from our documents</div>
+    </div>
+    <button id="close-btn" aria-label="Close chat">×</button>
+  </div>
+
+  <div id="messages">
+    <!-- welcome message injected by JS -->
+  </div>
+
+  <div class="suggestions" id="suggestions">
+    <button class="suggestion">How do I return a laptop?</button>
+    <button class="suggestion">Standard shipping cost?</button>
+    <button class="suggestion">Free shipping threshold?</button>
+    <button class="suggestion">Saturday support hours?</button>
+  </div>
+
+  <div class="chat-footer">
+    <textarea id="question-input" rows="1"
+              placeholder="Ask about returns, shipping, orders…"
+              aria-label="Your question"></textarea>
+    <button id="send-btn" aria-label="Send">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  const API = "http://localhost:8000";
+
+  const launcher   = document.getElementById("launcher");
+  const chatWindow = document.getElementById("chat-window");
+  const closeBtn   = document.getElementById("close-btn");
+  const messages   = document.getElementById("messages");
+  const input      = document.getElementById("question-input");
+  const sendBtn    = document.getElementById("send-btn");
+  const suggestBox = document.getElementById("suggestions");
+
+  // ── open / close ────────────────────────────────────────
+  function openChat() {
+    chatWindow.classList.remove("hidden");
+    input.focus();
+    launcher.style.display = "none";
+  }
+  function closeChat() {
+    chatWindow.classList.add("hidden");
+    launcher.style.display = "flex";
+  }
+  launcher.addEventListener("click", openChat);
+  closeBtn.addEventListener("click", closeChat);
+
+  // ── welcome message ──────────────────────────────────────
+  addBotMessage(
+    "Hi! I'm the VoltEdge support bot. I answer questions about returns, shipping and orders — straight from our documents.",
+    []
+  );
+
+  // ── suggestion pills ─────────────────────────────────────
+  suggestBox.querySelectorAll(".suggestion").forEach(btn => {
+    btn.addEventListener("click", () => {
+      input.value = btn.textContent;
+      suggestBox.style.display = "none";
+      sendMessage();
+    });
+  });
+
+  // ── send message ─────────────────────────────────────────
+  async function sendMessage() {
+    const question = input.value.trim();
+    if (!question) return;
+
+    addUserMessage(question);
+    input.value = "";
+    autoResize();
+    sendBtn.disabled = true;
+    suggestBox.style.display = "none";
+
+    const typingEl = addTyping();
+
+    try {
+      const res = await fetch(`${API}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      typingEl.remove();
+      addBotMessage(data.answer, data.sources);
+
+    } catch (err) {
+      typingEl.remove();
+      addBotMessage(
+        "Sorry, I couldn't reach the server. Make sure the bot is running on port 8000.",
+        [], true
+      );
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  // ── helpers ──────────────────────────────────────────────
+  function addUserMessage(text) {
+    const div = document.createElement("div");
+    div.className = "msg user";
+    div.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    messages.appendChild(div);
+    scrollBottom();
+  }
+
+  function addBotMessage(text, sources = [], isError = false) {
+    const div = document.createElement("div");
+    div.className = "msg bot";
+
+    let html = `<div class="bubble${isError ? " error" : ""}">${escHtml(text)}</div>`;
+
+    if (sources && sources.length) {
+      html += '<div class="sources">';
+      sources.forEach(s => {
+        html += `<div class="source-chip">${escHtml(s.label)}</div>`;
+      });
+      html += "</div>";
+    }
+    div.innerHTML = html;
+    messages.appendChild(div);
+    scrollBottom();
+  }
+
+  function addTyping() {
+    const div = document.createElement("div");
+    div.className = "msg bot";
+    div.innerHTML = `
+      <div class="bubble" style="padding:8px 14px;">
+        <div class="typing">
+          <span></span><span></span><span></span>
+        </div>
+      </div>`;
+    messages.appendChild(div);
+    scrollBottom();
+    return div;
+  }
+
+  function scrollBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
+              .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // ── input auto-resize ────────────────────────────────────
+  function autoResize() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 100) + "px";
+  }
+  input.addEventListener("input", autoResize);
+
+  // ── send on Enter (Shift+Enter = newline) ────────────────
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  sendBtn.addEventListener("click", sendMessage);
+</script>
+</body>
+</html>

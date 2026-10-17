@@ -6,6 +6,11 @@ langchain-chroma>=0.2
 langchain-huggingface>=0.1
 sentence-transformers>=3.0
 
+# Phase 4: API server
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
 # Phase 3: answer generation
 langchain-openai>=0.3
 
